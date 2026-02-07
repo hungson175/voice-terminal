@@ -1,0 +1,23 @@
+# Credentials
+.env
+
+# Dependencies
+node_modules/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Locks (regenerated)
+uv.lock
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp

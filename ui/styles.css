@@ -1,0 +1,279 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  font-size: 13px;
+  color: #1d1d1f;
+  background: #f5f5f7;
+  padding: 12px;
+  padding-top: 0;
+  user-select: none;
+  overflow-y: auto;
+}
+
+/* Draggable title bar */
+.drag-bar {
+  -webkit-app-region: drag;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  position: sticky;
+  top: 0;
+  background: #f5f5f7;
+  z-index: 10;
+}
+
+.drag-bar::after {
+  content: "";
+  width: 36px;
+  height: 4px;
+  background: #c7c7cc;
+  border-radius: 2px;
+}
+
+/* Sections */
+.section {
+  margin-bottom: 12px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #86868b;
+}
+
+/* Terminal Selector */
+.terminal-selector label {
+  display: block;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #86868b;
+  margin-bottom: 6px;
+}
+
+.terminal-selector select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d2d2d7;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  color: #1d1d1f;
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%2386868b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+.terminal-selector select:focus {
+  border-color: #0071e3;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+}
+
+/* Mic Button */
+.mic-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+}
+
+.mic-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 32px;
+  border: none;
+  border-radius: 16px;
+  background: #e8e8ed;
+  color: #1d1d1f;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.mic-button:hover {
+  background: #d2d2d7;
+}
+
+.mic-button.active {
+  background: #ff3b30;
+  color: #fff;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.3); }
+  50% { box-shadow: 0 0 0 12px rgba(255, 59, 48, 0); }
+}
+
+.status {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status.idle { color: #86868b; }
+.status.listening { color: #ff3b30; }
+.status.processing { color: #ff9500; }
+.status.sent { color: #34c759; }
+
+/* Transcript */
+.transcript-box {
+  background: #fff;
+  border: 1px solid #d2d2d7;
+  border-radius: 8px;
+  padding: 10px;
+  min-height: 80px;
+  max-height: 120px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+.transcript-box {
+  user-select: text;
+  cursor: text;
+}
+
+.transcript-box:focus {
+  outline: none;
+  border-color: #0071e3;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+}
+
+.transcript-box .interim {
+  color: #86868b;
+}
+
+.placeholder {
+  color: #c7c7cc;
+  font-style: italic;
+}
+
+/* Command Box */
+.command-box {
+  background: #1d1d1f;
+  border-radius: 8px;
+  padding: 10px;
+  min-height: 36px;
+  max-height: 120px;
+  overflow-y: auto;
+  font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  font-size: 13px;
+  color: #30d158;
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+.command-box .placeholder {
+  color: #636366;
+  font-style: normal;
+}
+
+.command-actions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.send-button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background: #0071e3;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.send-button:hover:not(:disabled) {
+  background: #0077ed;
+}
+
+.send-button:disabled {
+  background: #d2d2d7;
+  color: #86868b;
+  cursor: default;
+}
+
+.send-button.sent {
+  background: #34c759;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Icon button */
+.icon-btn {
+  border: none;
+  background: none;
+  color: #0071e3;
+  cursor: pointer;
+  padding: 3px 5px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.icon-btn:hover {
+  background: rgba(0, 113, 227, 0.1);
+}
+
+.icon-btn.active {
+  color: #fff;
+  background: #0071e3;
+}
+
+/* Text button */
+.text-btn {
+  border: none;
+  background: none;
+  color: #0071e3;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.text-btn:hover {
+  background: rgba(0, 113, 227, 0.1);
+}
+
+/* Scrollbar */
+.transcript-box::-webkit-scrollbar,
+.command-box::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.transcript-box::-webkit-scrollbar-thumb,
+.command-box::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb {
+  background: #c7c7cc;
+  border-radius: 2px;
+}

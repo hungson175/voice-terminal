@@ -1,0 +1,31 @@
+[project]
+name = "voice-terminal"
+version = "0.1.0"
+description = "Voice-to-terminal CLI: speak commands, send to Kitty"
+requires-python = ">=3.11"
+dependencies = [
+    "sounddevice>=0.5",
+    "websockets>=13.0",
+    "langchain>=0.3",
+    "langchain-xai>=0.2",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+voice-terminal = "voice_terminal.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/voice_terminal"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+]
