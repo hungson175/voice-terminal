@@ -25,6 +25,13 @@
 - Receives Kitty terminal context (last 50 lines) for disambiguation
 - Preserves swear words (frustration signals intent)
 
+### Terminal Selector (Electron UI)
+- Custom dropdown replaces native `<select>` — shows terminal name + hover preview
+- Preview fetches last 10 lines via `get-terminal-preview` IPC (reuses `kittyService.getContext` with 10 lines)
+- Previews are cached in a `Map` per dropdown session (cleared on reopen)
+- `selectedTerminalId` variable replaces `terminalSelect.value` — no hidden form state
+- Dropdown refreshes terminal list on every open via `loadTerminals()`
+
 ### kitty.py
 - `get_socket_path()` — reads `$KITTY_LISTEN_ON`
 - `get_text(socket_path)` — captures current pane text

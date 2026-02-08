@@ -1,30 +1,64 @@
-const { ipcMain, session } = require("electron");
+const { app, ipcMain, session } = require("electron");
 const { menubar } = require("menubar");
 const path = require("path");
 const fs = require("fs");
 
 const kittyService = require("./kitty-service");
 const llmService = require("./llm-service");
+const credentials = require("./credentials");
 
-// Load config
-const configPath = path.join(__dirname, "..", "config.json");
+// --- PATH fix for packaged app (Finder doesn't inherit shell PATH) ---
+if (app.isPackaged) {
+  const extraPaths = [
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    "/Applications/kitty.app/Contents/MacOS",
+  ];
+  process.env.PATH = `${process.env.PATH}:${extraPaths.join(":")}`;
+}
+
+// --- Config path: extraResources when packaged, project root in dev ---
+const configPath = app.isPackaged
+  ? path.join(process.resourcesPath, "config.json")
+  : path.join(__dirname, "..", "config.json");
 const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 
-// Load .env file
-const envPath = path.join(__dirname, "..", ".env");
-if (fs.existsSync(envPath)) {
-  const envContent = fs.readFileSync(envPath, "utf-8");
-  for (const line of envContent.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed && !trimmed.startsWith("#")) {
-      const eqIdx = trimmed.indexOf("=");
-      if (eqIdx > 0) {
-        const key = trimmed.slice(0, eqIdx);
-        const value = trimmed.slice(eqIdx + 1);
-        process.env[key] = value;
+// --- Load credentials (Keychain) or .env fallback for dev ---
+function loadApiKeys() {
+  if (credentials.hasCredentials()) {
+    const creds = credentials.getCredentials();
+    if (creds.xaiKey) process.env.XAI_API_KEY = creds.xaiKey;
+    if (creds.sonioxKey) process.env.SONIOX_API_KEY = creds.sonioxKey;
+    if (creds.xaiKey && creds.sonioxKey) return;
+  }
+  // Dev fallback: .env file
+  const envPath = app.isPackaged
+    ? null
+    : path.join(__dirname, "..", ".env");
+  if (envPath && fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, "utf-8");
+    for (const line of envContent.split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith("#")) {
+        const eqIdx = trimmed.indexOf("=");
+        if (eqIdx > 0) {
+          const key = trimmed.slice(0, eqIdx);
+          const value = trimmed.slice(eqIdx + 1);
+          process.env[key] = value;
+        }
       }
     }
   }
+}
+
+loadApiKeys();
+
+// --- Determine which page to show ---
+function getStartUrl() {
+  const needsSetup =
+    !credentials.hasCredentials() && !process.env.XAI_API_KEY;
+  const page = needsSetup ? "setup.html" : "index.html";
+  return `file://${path.join(__dirname, "..", "ui", page)}`;
 }
 
 const iconPath = path.join(__dirname, "..", "assets", "mic-iconTemplate.png");
@@ -36,7 +70,7 @@ const activeIconPath = path.join(
 );
 
 const mb = menubar({
-  index: `file://${path.join(__dirname, "..", "ui", "index.html")}`,
+  index: getStartUrl(),
   icon: iconPath,
   preloadWindow: true,
   browserWindow: {
@@ -67,9 +101,38 @@ mb.on("ready", () => {
   );
 });
 
-// Open DevTools for debugging (remove later)
+// DevTools only in dev mode
 mb.on("after-create-window", () => {
-  mb.window.webContents.openDevTools({ mode: "detach" });
+  if (!app.isPackaged) {
+    mb.window.webContents.openDevTools({ mode: "detach" });
+  }
+});
+
+// --- IPC: Save credentials from setup page, then reload to main UI ---
+ipcMain.handle("save-credentials", async (_event, { xaiKey, sonioxKey }) => {
+  credentials.saveCredentials(xaiKey, sonioxKey);
+  // Set env vars immediately so the current session works
+  process.env.XAI_API_KEY = xaiKey;
+  process.env.SONIOX_API_KEY = sonioxKey;
+  // Reload window to main UI
+  mb.window.loadURL(
+    `file://${path.join(__dirname, "..", "ui", "index.html")}`
+  );
+});
+
+// --- IPC: Reset credentials, go back to setup ---
+ipcMain.handle("reset-credentials", async () => {
+  credentials.clearCredentials();
+  delete process.env.XAI_API_KEY;
+  delete process.env.SONIOX_API_KEY;
+  mb.window.loadURL(
+    `file://${path.join(__dirname, "..", "ui", "setup.html")}`
+  );
+});
+
+// --- IPC: Quit app ---
+ipcMain.on("quit-app", () => {
+  app.quit();
 });
 
 // Toggle tray icon when mic state changes
@@ -81,7 +144,7 @@ ipcMain.on("mic-state", (_event, isActive) => {
 // Provide config to renderer
 ipcMain.handle("get-config", async () => config);
 
-// Real: list Kitty terminal windows
+// List Kitty terminal windows
 ipcMain.handle("list-terminals", async () => {
   try {
     return await kittyService.listTerminals();
@@ -91,10 +154,9 @@ ipcMain.handle("list-terminals", async () => {
   }
 });
 
-// Real: send corrected command to Kitty
+// Send corrected command to Kitty
 ipcMain.handle("send-command", async (_event, { terminalId, command }) => {
   try {
-    // terminalId format: "unix:/tmp/mykitty-PID::windowId"
     const [socket, windowId] = terminalId.split("::");
     await kittyService.sendCommand(socket, windowId, command);
     console.log(`[kitty] Sent to window ${windowId}: ${command}`);
@@ -105,7 +167,7 @@ ipcMain.handle("send-command", async (_event, { terminalId, command }) => {
   }
 });
 
-// Real: get terminal context for LLM disambiguation
+// Get terminal context for LLM disambiguation
 ipcMain.handle("get-terminal-context", async (_event, terminalId) => {
   try {
     const [socket, windowId] = terminalId.split("::");
@@ -117,13 +179,24 @@ ipcMain.handle("get-terminal-context", async (_event, terminalId) => {
   }
 });
 
-// Real: correct transcript via LLM
+// Get terminal preview (last 20 lines for dropdown)
+ipcMain.handle("get-terminal-preview", async (_event, terminalId) => {
+  try {
+    const [socket, windowId] = terminalId.split("::");
+    return await kittyService.getContext(socket, windowId, 20);
+  } catch (err) {
+    console.error("Failed to get preview:", err.message);
+    return "";
+  }
+});
+
+// Correct transcript via LLM
 ipcMain.handle(
   "correct-transcript",
   async (_event, { transcript, terminalContext }) => {
     const apiKey = process.env.XAI_API_KEY;
     if (!apiKey) {
-      throw new Error("XAI_API_KEY not set in .env");
+      throw new Error("XAI_API_KEY not set — run setup or add .env");
     }
     return await llmService.correctTranscript(
       transcript,
@@ -134,7 +207,7 @@ ipcMain.handle(
   }
 );
 
-// Provide Soniox API key to renderer (for direct WebSocket)
+// Provide Soniox API key to renderer
 ipcMain.handle("get-soniox-key", async () => {
   return process.env.SONIOX_API_KEY || "";
 });

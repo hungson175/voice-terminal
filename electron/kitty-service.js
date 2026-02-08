@@ -5,7 +5,7 @@
  * then uses `kitty @` remote control for all operations.
  */
 
-const { execFile } = require("child_process");
+const { execFile, spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
@@ -36,22 +36,51 @@ function discoverSockets() {
 }
 
 /**
- * Run a kitty @ command and return parsed JSON output.
+ * Run a kitty @ command and return output.
+ * When stdinData is provided, pipes it via stdin (reliable for long text).
  */
-function kittyCommand(socketPath, args) {
+function kittyCommand(socketPath, args, stdinData) {
   return new Promise((resolve, reject) => {
-    execFile(
-      "kitty",
-      ["@", "--to", socketPath, ...args],
-      { timeout: 5000 },
-      (error, stdout, stderr) => {
-        if (error) {
-          reject(new Error(`kitty @ ${args[0]} failed: ${stderr || error.message}`));
-          return;
+    if (stdinData != null) {
+      // Use spawn + stdin for long text (avoids arg length limits & timeout)
+      const timeout = Math.max(10000, stdinData.length * 20);
+      const child = spawn("kitty", ["@", "--to", socketPath, ...args]);
+      let stdout = "";
+      let stderr = "";
+      const timer = setTimeout(() => {
+        child.kill();
+        reject(new Error(`kitty @ ${args[0]} timed out after ${timeout}ms`));
+      }, timeout);
+      child.stdout.on("data", (d) => (stdout += d));
+      child.stderr.on("data", (d) => (stderr += d));
+      child.on("close", (code) => {
+        clearTimeout(timer);
+        if (code !== 0) {
+          reject(new Error(`kitty @ ${args[0]} failed: ${stderr}`));
+        } else {
+          resolve(stdout);
         }
-        resolve(stdout);
-      }
-    );
+      });
+      child.on("error", (err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+      child.stdin.write(stdinData);
+      child.stdin.end();
+    } else {
+      execFile(
+        "kitty",
+        ["@", "--to", socketPath, ...args],
+        { timeout: 5000 },
+        (error, stdout, stderr) => {
+          if (error) {
+            reject(new Error(`kitty @ ${args[0]} failed: ${stderr || error.message}`));
+            return;
+          }
+          resolve(stdout);
+        }
+      );
+    }
   });
 }
 
@@ -119,12 +148,17 @@ async function getContext(socket, windowId, lines = 50) {
  * Send a command to a kitty window (text + Return key).
  */
 async function sendCommand(socket, windowId, text) {
+  // Pipe text via stdin for reliability with long commands
   await kittyCommand(socket, [
     "send-text",
+    "--stdin",
     "--match",
     `id:${windowId}`,
-    text,
-  ]);
+  ], text);
+  // Delay before Enter so the terminal app finishes processing long input
+  if (text.length > 200) {
+    await new Promise((r) => setTimeout(r, 500));
+  }
   await kittyCommand(socket, [
     "send-key",
     "--match",

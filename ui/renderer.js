@@ -7,7 +7,39 @@ const commandBox = document.getElementById("command-box");
 const sendBtn = document.getElementById("send-btn");
 const clearBtn = document.getElementById("clear-btn");
 const editBtn = document.getElementById("edit-btn");
-const terminalSelect = document.getElementById("terminal-select");
+
+// API key error dialog
+const keyErrorOverlay = document.getElementById("key-error-overlay");
+const keyErrorMsg = document.getElementById("key-error-msg");
+document.getElementById("key-error-reset").addEventListener("click", () => {
+  window.voiceTerminal.resetCredentials();
+});
+document.getElementById("key-error-dismiss").addEventListener("click", () => {
+  keyErrorOverlay.style.display = "none";
+});
+
+function isAuthError(errMsg) {
+  const lower = errMsg.toLowerCase();
+  return lower.includes("401") || lower.includes("403") ||
+    lower.includes("unauthorized") || lower.includes("invalid") ||
+    lower.includes("authentication") || lower.includes("api key") ||
+    lower.includes("api_key");
+}
+
+function showKeyError(service, errMsg) {
+  keyErrorMsg.textContent = `${service} rejected your API key: ${errMsg}`;
+  keyErrorOverlay.style.display = "flex";
+}
+
+// Custom dropdown elements
+const dropdownTrigger = document.getElementById("dropdown-trigger");
+const dropdownList = document.getElementById("dropdown-list");
+const terminalPreview = document.getElementById("terminal-preview");
+
+// Dropdown state
+let selectedTerminalId = "";
+let dropdownOpen = false;
+const previewCache = new Map();
 
 // Services
 const stt = new SonioxSTT();
@@ -16,6 +48,7 @@ let detector = null;
 // State
 let isListening = false;
 let sonioxKey = "";
+let reminderTimer = null;
 
 // --- Init ---
 async function init() {
@@ -35,30 +68,133 @@ async function init() {
     console.error("STT error:", err);
     setStatus("STT error: " + err.message, "idle");
     stopListening();
+    if (isAuthError(err.message)) {
+      showKeyError("Soniox", err.message);
+    }
   };
 }
 
 // --- Terminal list ---
 async function loadTerminals() {
   const terminals = await window.voiceTerminal.listTerminals();
-  terminalSelect.innerHTML = "";
+  dropdownList.innerHTML = "";
+  previewCache.clear();
 
   if (terminals.length === 0) {
-    const opt = document.createElement("option");
-    opt.value = "";
-    opt.textContent = "No Kitty windows found";
-    opt.disabled = true;
-    opt.selected = true;
-    terminalSelect.appendChild(opt);
+    const item = document.createElement("div");
+    item.className = "dropdown-item no-terminals";
+    item.textContent = "No Kitty windows found";
+    dropdownList.appendChild(item);
+    selectedTerminalId = "";
+    dropdownTrigger.querySelector(".dropdown-trigger-text").textContent =
+      "No Kitty windows found";
     return;
   }
 
   terminals.forEach((t) => {
-    const opt = document.createElement("option");
-    opt.value = t.id;
-    opt.textContent = t.displayName || t.title;
-    terminalSelect.appendChild(opt);
+    const item = document.createElement("div");
+    item.className = "dropdown-item";
+    item.dataset.id = t.id;
+    item.textContent = t.displayName || t.title;
+
+    if (t.id === selectedTerminalId) {
+      item.classList.add("selected");
+    }
+
+    item.addEventListener("mouseenter", () => handleItemHover(t.id));
+    item.addEventListener("click", () => selectTerminal(t.id, item.textContent));
+    dropdownList.appendChild(item);
   });
+
+  // If previously selected terminal is gone, reset
+  if (selectedTerminalId) {
+    const stillExists = terminals.some((t) => t.id === selectedTerminalId);
+    if (!stillExists) {
+      selectedTerminalId = "";
+      dropdownTrigger.querySelector(".dropdown-trigger-text").textContent =
+        "Select a terminal...";
+    }
+  }
+}
+
+// --- Custom dropdown ---
+function toggleDropdown() {
+  if (dropdownOpen) {
+    closeDropdown();
+  } else {
+    openDropdown();
+  }
+}
+
+async function openDropdown() {
+  dropdownOpen = true;
+  dropdownTrigger.classList.add("open");
+  dropdownList.classList.add("open");
+  terminalPreview.classList.add("visible");
+  terminalPreview.innerHTML =
+    '<span class="preview-placeholder">Hover a terminal to preview...</span>';
+
+  // Refresh terminal list when opening
+  await loadTerminals();
+}
+
+function closeDropdown() {
+  dropdownOpen = false;
+  dropdownTrigger.classList.remove("open");
+  dropdownList.classList.remove("open");
+  terminalPreview.classList.remove("visible");
+}
+
+function selectTerminal(id, displayName) {
+  const prevId = selectedTerminalId;
+  selectedTerminalId = id;
+  dropdownTrigger.querySelector(".dropdown-trigger-text").textContent = displayName;
+
+  // Update selected styling
+  dropdownList.querySelectorAll(".dropdown-item").forEach((el) => {
+    el.classList.toggle("selected", el.dataset.id === id);
+  });
+
+  closeDropdown();
+
+  // Stop recording when switching terminal
+  if (prevId !== id && isListening) {
+    stopListening();
+  }
+}
+
+let hoverDebounce = null;
+async function handleItemHover(terminalId) {
+  // Debounce rapid hovers
+  clearTimeout(hoverDebounce);
+  hoverDebounce = setTimeout(async () => {
+    // Check cache first
+    if (previewCache.has(terminalId)) {
+      showPreview(previewCache.get(terminalId));
+      return;
+    }
+
+    terminalPreview.innerHTML =
+      '<span class="preview-placeholder">Loading preview...</span>';
+
+    try {
+      const preview = await window.voiceTerminal.getTerminalPreview(terminalId);
+      previewCache.set(terminalId, preview);
+      showPreview(preview);
+    } catch {
+      terminalPreview.innerHTML =
+        '<span class="preview-placeholder">Failed to load preview</span>';
+    }
+  }, 100);
+}
+
+function showPreview(text) {
+  if (!text || !text.trim()) {
+    terminalPreview.innerHTML =
+      '<span class="preview-placeholder">(empty terminal)</span>';
+    return;
+  }
+  terminalPreview.textContent = text;
 }
 
 // --- Mic toggle ---
@@ -86,6 +222,21 @@ async function startListening() {
     sendBtn.textContent = "Send to Terminal";
 
     await stt.start(sonioxKey);
+
+    // Gentle beep every 60s while listening
+    reminderTimer = setInterval(() => {
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      gain.gain.value = 0.08;
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+      osc.onended = () => ctx.close();
+    }, 60000);
   } catch (err) {
     console.error("Failed to start:", err);
     setStatus("Mic error: " + err.message, "idle");
@@ -99,6 +250,10 @@ function stopListening() {
   micLabel.textContent = "Start";
   window.voiceTerminal.setMicState(false);
   stt.stop();
+  if (reminderTimer) {
+    clearInterval(reminderTimer);
+    reminderTimer = null;
+  }
 
   // Show edit button when stopped (if there's transcript text)
   if (transcriptBox.textContent.trim()) {
@@ -139,7 +294,7 @@ async function handleCommandDetected(rawCommand) {
 
   try {
     // Get terminal context for LLM disambiguation
-    const terminalId = terminalSelect.value;
+    const terminalId = selectedTerminalId;
     let terminalContext = "";
     if (terminalId) {
       terminalContext =
@@ -173,12 +328,15 @@ async function handleCommandDetected(rawCommand) {
     commandBox.innerHTML = escapeHtml(rawCommand);
     sendBtn.disabled = false;
     setStatus("Correction failed, listening...", "listening");
+    if (isAuthError(err.message || "")) {
+      showKeyError("xAI", err.message);
+    }
   }
 }
 
 // --- Send command ---
 async function handleSend() {
-  const terminalId = terminalSelect.value;
+  const terminalId = selectedTerminalId;
   const command = commandBox.textContent;
 
   if (!terminalId || !command || command === "—") return;
@@ -248,12 +406,24 @@ editBtn.addEventListener("click", () => {
   if (!editing) transcriptBox.focus();
 });
 
-// Refresh terminal list on dropdown focus
-terminalSelect.addEventListener("focus", loadTerminals);
+// Custom dropdown toggle
+dropdownTrigger.addEventListener("click", toggleDropdown);
 
-// Stop recording when switching terminal (keep transcript)
-terminalSelect.addEventListener("change", () => {
-  if (isListening) stopListening();
+// Close dropdown when clicking outside
+document.addEventListener("click", (e) => {
+  if (dropdownOpen && !e.target.closest(".terminal-dropdown")) {
+    closeDropdown();
+  }
+});
+
+// Reset API keys
+document.getElementById("reset-keys-btn").addEventListener("click", () => {
+  window.voiceTerminal.resetCredentials();
+});
+
+// Quit button
+document.getElementById("quit-btn").addEventListener("click", () => {
+  window.voiceTerminal.quitApp();
 });
 
 // --- Boot ---

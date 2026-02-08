@@ -65,7 +65,11 @@ body {
   margin-bottom: 6px;
 }
 
-.terminal-selector select {
+/* Custom dropdown */
+.terminal-dropdown {
+}
+
+.dropdown-trigger {
   width: 100%;
   padding: 8px 10px;
   border: 1px solid #d2d2d7;
@@ -74,15 +78,122 @@ body {
   font-size: 13px;
   color: #1d1d1f;
   outline: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%2386868b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  font-family: inherit;
 }
 
-.terminal-selector select:focus {
+.dropdown-trigger:hover {
+  border-color: #b0b0b5;
+}
+
+.dropdown-trigger.open {
   border-color: #0071e3;
   box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.dropdown-trigger-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.dropdown-arrow {
+  flex-shrink: 0;
+  margin-left: 8px;
+  transition: transform 0.2s ease;
+}
+
+.dropdown-trigger.open .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.dropdown-list {
+  display: none;
+  background: #fff;
+  border: 1px solid #0071e3;
+  border-top: none;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.dropdown-list.open {
+  display: block;
+}
+
+.dropdown-item {
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #1d1d1f;
+  border-bottom: 1px solid #f0f0f2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover,
+.dropdown-item.hovered {
+  background: #e8f0fe;
+  color: #0071e3;
+}
+
+.dropdown-item.selected {
+  font-weight: 600;
+}
+
+.dropdown-item.no-terminals {
+  color: #86868b;
+  font-style: italic;
+  cursor: default;
+}
+
+/* Terminal preview panel */
+.terminal-preview {
+  display: none;
+  margin-top: 6px;
+  background: #1d1d1f;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #e0e0e0;
+  max-height: 300px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.terminal-preview.visible {
+  display: block;
+}
+
+.terminal-preview .preview-placeholder {
+  color: #636366;
+  font-style: italic;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+.terminal-preview::-webkit-scrollbar {
+  width: 4px;
+}
+
+.terminal-preview::-webkit-scrollbar-thumb {
+  background: #636366;
+  border-radius: 2px;
 }
 
 /* Mic Button */
@@ -276,4 +387,205 @@ body::-webkit-scrollbar {
 body::-webkit-scrollbar-thumb {
   background: #c7c7cc;
   border-radius: 2px;
+}
+
+/* Quit button */
+.quit-section {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e8e8ed;
+  display: flex;
+  justify-content: center;
+}
+
+.quit-btn {
+  border: none;
+  background: none;
+  color: #86868b;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.quit-btn:hover {
+  color: #ff3b30;
+  background: rgba(255, 59, 48, 0.08);
+}
+
+.footer-sep {
+  color: #c7c7cc;
+  font-size: 11px;
+}
+
+/* Setup page */
+.setup-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 16px;
+  gap: 24px;
+}
+
+.setup-header {
+  text-align: center;
+}
+
+.setup-header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1d1d1f;
+  margin-top: 12px;
+}
+
+.setup-subtitle {
+  font-size: 13px;
+  color: #86868b;
+  margin-top: 4px;
+}
+
+.setup-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.setup-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.setup-field label {
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #86868b;
+}
+
+.setup-field input {
+  padding: 10px 12px;
+  border: 1px solid #d2d2d7;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: "SF Mono", "Menlo", monospace;
+  color: #1d1d1f;
+  background: #fff;
+  outline: none;
+  width: 100%;
+}
+
+.setup-field input:focus {
+  border-color: #0071e3;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+}
+
+.setup-field input::placeholder {
+  color: #c7c7cc;
+}
+
+.setup-error {
+  font-size: 12px;
+  color: #ff3b30;
+  text-align: center;
+}
+
+.setup-save-btn {
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  background: #0071e3;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.setup-save-btn:hover:not(:disabled) {
+  background: #0077ed;
+}
+
+.setup-save-btn:disabled {
+  background: #d2d2d7;
+  color: #86868b;
+  cursor: default;
+}
+
+.setup-footnote {
+  font-size: 11px;
+  color: #c7c7cc;
+  text-align: center;
+}
+
+/* Error dialog */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dialog-box {
+  background: #f5f5f7;
+  border-radius: 12px;
+  padding: 20px;
+  width: 280px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.dialog-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1d1d1f;
+  margin-bottom: 8px;
+}
+
+.dialog-msg {
+  font-size: 12px;
+  color: #86868b;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+.dialog-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dialog-btn-primary {
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: #0071e3;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dialog-btn-primary:hover {
+  background: #0077ed;
+}
+
+.dialog-btn-secondary {
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: #86868b;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dialog-btn-secondary:hover {
+  background: rgba(0, 0, 0, 0.05);
 }
