@@ -2,30 +2,29 @@
 
 macOS menubar app that converts voice commands into terminal input. Speak naturally in Vietnamese, English, or a mix of both — your words get transcribed and sent directly to a [Kitty](https://sw.kovidgoyal.net/kitty/) terminal window.
 
-<!-- TODO: Add demo video/GIF here -->
+<!-- TODO: Add screenshot or demo GIF -->
 <!-- ![Demo](assets/demo.gif) -->
 
-## How It Works
+## Quick Start
 
+### 1. Install
+
+**One-line install:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hungson175/voice-terminal/main/install.sh | bash
 ```
-Mic → Soniox STT (WebSocket) → Stop word detection → [Optional LLM correction] → kitty @ send-text
-```
 
-1. **Record** — Click the mic button or use the menubar icon
-2. **Transcribe** — Real-time speech-to-text via Soniox (supports Vietnamese + English)
-3. **Correct** *(optional)* — LLM (Grok/xAI) fixes transcription errors into valid commands
-4. **Send** — Command is typed into the selected Kitty terminal window
+Or download the `.dmg` manually from [Releases](https://github.com/hungson175/voice-terminal/releases).
 
-## Requirements
+### 2. Get API Keys
 
-- **macOS** (Apple Silicon or Intel)
-- **[Kitty terminal](https://sw.kovidgoyal.net/kitty/)** with remote control enabled
-- **[Soniox](https://soniox.com/) API key** (required — for speech-to-text)
-- **[xAI](https://x.ai/) API key** (optional — for LLM command correction)
+- **Soniox** (required) — Sign up at [soniox.com](https://soniox.com) and grab your API key
+- **xAI / Grok** (optional) — Get a key at [x.ai](https://x.ai) for LLM command correction
 
-### Kitty Configuration
+### 3. Configure Kitty
 
-Add these lines to `~/.config/kitty/kitty.conf`:
+Add to `~/.config/kitty/kitty.conf`:
 
 ```
 allow_remote_control yes
@@ -34,50 +33,11 @@ listen_on unix:/tmp/mykitty-{kitty_pid}
 
 Restart Kitty after editing.
 
-## Install
+### 4. Launch
 
-### Option 1: Download DMG
+Open **Voice Terminal** from Spotlight or `/Applications`. On first launch, enter your API keys — they're stored securely in the macOS Keychain.
 
-<!-- TODO: Add GitHub Releases link when first release is published -->
-Download the latest `.dmg` from [Releases](https://github.com/hungson175/voice-terminal/releases), open it, and drag **Voice Terminal** to `/Applications`.
-
-### Option 2: Build from source
-
-```bash
-git clone https://github.com/hungson175/voice-terminal.git
-cd voice-terminal
-npm install
-npm run build
-```
-
-The DMG will be in `dist/`. Open it and drag to `/Applications`.
-
-### Option 3: Run in dev mode
-
-```bash
-git clone https://github.com/hungson175/voice-terminal.git
-cd voice-terminal
-npm install
-```
-
-Create a `.env` file:
-
-```
-SONIOX_API_KEY=your_soniox_key_here
-XAI_API_KEY=your_xai_key_here   # optional
-```
-
-```bash
-npm start
-```
-
-## First Run
-
-When launched for the first time (or after resetting keys), the app shows a setup screen where you enter your API keys. Keys are stored securely in the **macOS Keychain** via Electron's `safeStorage`.
-
-In dev mode, keys are read from the `.env` file instead.
-
-## Usage
+### 5. Use
 
 1. Click the menubar icon to open the popup
 2. Select a target Kitty terminal window from the dropdown
@@ -85,20 +45,52 @@ In dev mode, keys are read from the `.env` file instead.
 4. Say **"thank you"** to stop recording (or click the mic again)
 5. Review the transcribed command, then click **Send to Terminal**
 
-The app auto-detects all running Kitty windows. Hover over a terminal in the dropdown to preview its current content.
+## How It Works
+
+```
+Mic → Soniox STT (WebSocket) → Stop word detection → [Optional LLM correction] → kitty @ send-text
+```
+
+- **Speech-to-text** — Real-time via Soniox WebSocket with context injection (programming terms, terminal context) for better accuracy
+- **LLM correction** *(optional)* — Grok/xAI fixes transcription errors into valid shell commands. Automatically skipped if no xAI key is configured
+- **Terminal detection** — Auto-discovers all running Kitty windows via `/tmp/mykitty-*` sockets. Hover to preview terminal content
+
+## Requirements
+
+| Requirement | Details |
+|---|---|
+| **macOS** | Apple Silicon or Intel |
+| **Kitty** | With `allow_remote_control yes` and `listen_on` configured |
+| **Soniox API key** | Required — for speech-to-text |
+| **xAI API key** | Optional — for LLM command correction |
+
+## Install from Source
+
+```bash
+git clone https://github.com/hungson175/voice-terminal.git
+cd voice-terminal
+npm install
+npm run build        # → DMG in dist/
+```
+
+**Dev mode** (no build needed):
+
+```bash
+cp .env.example .env  # add your API keys
+npm start
+```
 
 ## Configuration
 
-All settings are in `config.json`:
+Edit `config.json` to customize:
 
-| Key | Description |
-|-----|-------------|
-| `soniox.model` | STT model (`stt-rt-v4`) |
-| `soniox.language_hints` | Languages to detect (`["vi", "en"]`) |
-| `llm.provider` | LLM provider (`xai`) |
-| `llm.model` | LLM model for correction |
-| `voice.stop_word` | Phrase to stop recording (`thank you`) |
-| `voice.context_lines` | Lines of terminal context sent to LLM |
+| Key | Default | Description |
+|-----|---------|-------------|
+| `soniox.model` | `stt-rt-v4` | Soniox STT model |
+| `soniox.language_hints` | `["vi", "en"]` | Languages to detect |
+| `llm.model` | `grok-4-fast-non-reasoning` | LLM model for correction |
+| `voice.stop_word` | `thank you` | Phrase to stop recording |
+| `voice.context_lines` | `100` | Terminal context lines sent to LLM |
 
 ## License
 
