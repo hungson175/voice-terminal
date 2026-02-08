@@ -24,7 +24,13 @@ Or download the `.dmg` manually from [Releases](https://github.com/hungson175/vo
 
 ### 3. Configure Kitty
 
-Add to `~/.config/kitty/kitty.conf`:
+Install Kitty if you haven't already:
+
+```bash
+curl -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin
+```
+
+Then add to `~/.config/kitty/kitty.conf`:
 
 ```
 allow_remote_control yes
