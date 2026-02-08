@@ -45,11 +45,12 @@ Open **Voice Terminal** from Spotlight or `/Applications`. On first launch, ente
 
 ### 5. Use
 
-1. Click the menubar icon to open the popup
-2. Select a target Kitty terminal window from the dropdown
-3. Click the mic button and speak your command
-4. Say **"thank you"** to stop recording (or click the mic again)
-5. Review the transcribed command, then click **Send to Terminal**
+1. Open **Kitty** and launch **Claude Code** (e.g. `claude` in a Kitty terminal)
+2. Click the Voice Terminal menubar icon to open the popup
+3. Select the Kitty terminal window running Claude Code from the dropdown
+4. Click the mic button and speak your command
+5. Say **"thank you"** to stop recording (or click the mic again)
+6. Review the transcribed command, then click **Send to Terminal**
 
 ## How It Works
 
@@ -67,6 +68,7 @@ Mic → Soniox STT (WebSocket) → Stop word detection → [Optional LLM correct
 |---|---|
 | **macOS** | Apple Silicon or Intel |
 | **Kitty** | With `allow_remote_control yes` and `listen_on` configured |
+| **Claude Code** | [Anthropic's CLI](https://docs.anthropic.com/en/docs/claude-code) running inside Kitty |
 | **Soniox API key** | Required — for speech-to-text |
 | **xAI API key** | Optional — for LLM command correction |
 
