@@ -106,6 +106,22 @@
       </div>
     </div>
 
+    <!-- Skip LLM Dialog (xAI auth failed) -->
+    <div id="skip-llm-overlay" class="dialog-overlay" style="display:none;">
+      <div class="dialog-box">
+        <div class="dialog-title">xAI Key Error</div>
+        <div id="skip-llm-msg" class="dialog-msg"></div>
+        <div class="dialog-actions">
+          <button id="skip-llm-yes" class="dialog-btn-primary">Skip LLM Correction</button>
+          <button id="skip-llm-update" class="dialog-btn-secondary">Update API Key</button>
+        </div>
+        <label class="dialog-checkbox">
+          <input type="checkbox" id="skip-llm-remember" />
+          <span>Don't ask again</span>
+        </label>
+      </div>
+    </div>
+
     <script src="stt.js"></script>
     <script src="stopword.js"></script>
     <script src="renderer.js"></script>

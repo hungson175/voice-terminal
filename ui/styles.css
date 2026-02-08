@@ -589,3 +589,18 @@ body::-webkit-scrollbar-thumb {
 .dialog-btn-secondary:hover {
   background: rgba(0, 0, 0, 0.05);
 }
+
+.dialog-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 11px;
+  color: #86868b;
+  cursor: pointer;
+}
+
+.dialog-checkbox input {
+  cursor: pointer;
+}

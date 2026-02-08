@@ -211,3 +211,8 @@ ipcMain.handle(
 ipcMain.handle("get-soniox-key", async () => {
   return process.env.SONIOX_API_KEY || "";
 });
+
+// Check if xAI key is configured
+ipcMain.handle("has-xai-key", async () => {
+  return !!process.env.XAI_API_KEY;
+});

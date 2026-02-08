@@ -56,7 +56,7 @@ async def correct_transcript(
         Corrected command string
     """
     llm = init_chat_model(
-        "grok-3-fast",
+        "grok-4-fast-non-reasoning",
         model_provider="xai",
         temperature=0.1,
     )

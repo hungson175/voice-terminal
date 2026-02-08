@@ -20,6 +20,9 @@ contextBridge.exposeInMainWorld("voiceTerminal", {
   // Soniox API key (for direct WebSocket from renderer)
   getSonioxKey: () => ipcRenderer.invoke("get-soniox-key"),
 
+  // Check if xAI key is configured
+  hasXaiKey: () => ipcRenderer.invoke("has-xai-key"),
+
   // Config
   getConfig: () => ipcRenderer.invoke("get-config"),
 
