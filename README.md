@@ -2,8 +2,7 @@
 
 macOS menubar app that converts voice commands into terminal input. Speak naturally in Vietnamese, English, or a mix of both — your words get transcribed and sent directly to a [Kitty](https://sw.kovidgoyal.net/kitty/) terminal window.
 
-<!-- TODO: Add screenshot or demo GIF -->
-<!-- ![Demo](assets/demo.gif) -->
+[![Demo](https://img.youtube.com/vi/Q9IMOgKkpB0/maxresdefault.jpg)](https://youtu.be/Q9IMOgKkpB0)
 
 ## Quick Start
 
