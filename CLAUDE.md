@@ -3,7 +3,9 @@
 ## Commands
 ```bash
 npm install                                      # Install Electron dependencies
-npm start                                        # Run the menubar app
+npm start                                        # Run the menubar app (dev mode)
+npm run build:dir                                # Package as .app (dist/mac-arm64/)
+npm run build                                    # Package as DMG for distribution
 uv sync                                          # Install Python dependencies
 uv run pytest                                    # Run all tests
 uv run pytest tests/test_kitty.py -v             # Single test file
@@ -12,26 +14,28 @@ uv run pytest tests/test_kitty.py -v             # Single test file
 ## Architecture
 Voice Terminal: macOS menubar app for voice-to-terminal commands (Vietnamese+English mix).
 
-**Pipeline:** Mic (Web Audio API) → Soniox WebSocket → STT tokens → Stop word detection → LLM correction (Grok/xAI) → kitty @ send-text
+**Pipeline (current, experiment branch):** Mic → Soniox WebSocket (with context injection) → STT → Stop word → kitty send-text
+**Pipeline (main branch):** Mic → Soniox → STT → Stop word → LLM correction (Grok/xAI) → kitty send-text
 
-**Electron app** (primary):
-- `electron/main.js` — Main process: tray, IPC, loads config.json + .env
+**Electron app:**
+- `electron/main.js` — Main process: tray, IPC, credential loading, setup routing
 - `electron/preload.js` — Context bridge for renderer
+- `electron/credentials.js` — Encrypted API key storage via macOS Keychain (safeStorage)
 - `electron/kitty-service.js` — Auto-detect Kitty windows via `/tmp/mykitty-*` sockets
-- `electron/llm-service.js` — xAI API for transcript correction
-- `ui/stt.js` — Soniox WebSocket STT client (runs in renderer)
+- `electron/llm-service.js` — xAI API for transcript correction (disabled on experiment branch)
+- `ui/stt.js` — Soniox WebSocket STT client with context injection support
 - `ui/stopword.js` — Stop word detector
-- `ui/renderer.js` — UI logic, wires STT → stopword → LLM → Kitty
+- `ui/renderer.js` — UI logic, Soniox context builder, terminal send
+- `ui/setup.html` + `ui/setup.js` — First-run API key setup page
 - `ui/index.html` + `ui/styles.css` — Menubar popup UI
 
-**Python backend** (modules for future CLI mode):
-- `src/voice_terminal/kitty.py`, `audio.py`, `stt.py`, `stopword.py`, `llm.py`
+**Packaging:** electron-builder → `dist/mac-arm64/Voice Terminal.app`. Config in `extraResources`, code in asar.
 
 **Config:** `config.json` — all service URLs, models, and settings. Never hardcode these values.
 
 ## Key Conventions
-- **UI-first development**: Build UI with mocked data first (v1.0), then wire backend incrementally
-- **Configuration as code**: All URLs, models, thresholds in `config.json`. Secrets in `.env`.
+- **Configuration as code**: All URLs, models, thresholds in `config.json`. Secrets encrypted in Keychain, `.env` as dev fallback.
+- **No inline scripts**: CSP `default-src 'self'` blocks inline `<script>` tags. All JS must be in external `.js` files.
 - **Reference implementation**: Check `AI-teams-controller` at `/Users/sonph36/dev/coding-agents/AI-teams-controller` for proven patterns, NOT the PKM code samples (outdated)
 - Kitty terminal must have `allow_remote_control yes` + `listen_on` configured
 

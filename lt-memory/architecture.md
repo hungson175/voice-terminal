@@ -1,45 +1,69 @@
 # Architecture Details
 
+## Electron App Packaging
+
+**electron-builder** packages into `dist/mac-arm64/Voice Terminal.app`:
+- `electron/`, `ui/`, `assets/` → inside asar (transparent `__dirname` paths work)
+- `config.json` → `extraResources` at `Contents/Resources/config.json`
+- `assets/icon.png` (1024x1024) → auto-converted to `.icns`
+- Tray icon paths need no change (Electron reads asar transparently)
+
+**Path resolution in main.js:**
+- Config: `app.isPackaged ? process.resourcesPath : __dirname/..`
+- UI/preload: `__dirname`-relative (works inside asar)
+- PATH fix: append `/opt/homebrew/bin`, `/usr/local/bin`, kitty app path when packaged
+
+## Credential Flow
+
+1. `credentials.js` uses `safeStorage.encryptString()`/`decryptString()` (macOS Keychain)
+2. Stores encrypted base64 in `~/Library/Application Support/voice-terminal/credentials.json`
+3. `hasCredentials()` → checks file exists with required keys
+4. `main.js:loadApiKeys()` → try Keychain first, fall back to `.env` in dev
+5. `main.js:getStartUrl()` → routes to `setup.html` or `index.html`
+6. Setup page saves keys via IPC → main reloads to `index.html`
+7. "Reset API Keys" in main UI → clears credentials → reloads to `setup.html`
+
+## Soniox Context Injection (experiment branch)
+
+Context object sent with WebSocket init message:
+- `general`: `[{key: "domain", value: "Software Development"}]`
+- `text`: Last 50 lines from selected Kitty terminal (up to 8000 chars)
+- `terms`: 30+ programming terms for vocabulary boosting
+- `translation_terms`: `[{source, target}]` array mapping Vietnamese phonetic misheards to correct terms
+
+Context is built fresh each time recording starts (`buildSonioxContext()` in renderer.js).
+With context injection, LLM correction step is bypassed — raw Soniox transcript sent directly.
+
 ## Module Interfaces
 
-### audio.py
-- Captures 16kHz mono PCM16 from mic via `sounddevice`
-- Streams chunks of 4096 samples via callback
-- Provides async iterator or callback interface for pipeline consumption
+### kitty-service.js
+- `discoverSockets()` — scans `/tmp/mykitty-*` for socket files
+- `kittyCommand(socket, args, stdinData)` — runs `kitty @` with optional stdin piping
+- `sendCommand(socket, windowId, text)` — send-text via stdin + 500ms delay for long text + send-key Return
+- `listTerminals()` — returns flat array of `{id, windowId, socket, title, cwd, displayName}`
+- `getContext(socket, windowId, lines)` — last N lines of terminal text
 
-### stt.py (Soniox WebSocket)
-- Endpoint: `wss://api.soniox.com/transcribe-websocket`
-- Protocol: Send JSON config first, then binary audio frames
-- Language hints: `["vi", "en"]` with `strict=true`
-- Returns token stream, accumulates into transcript
+### stt.js (Soniox WebSocket, renderer process)
+- `start(apiKey, context)` — connects WebSocket, sends init config with optional context object, starts audio streaming
+- Protocol: JSON config first (text frame), then binary PCM16 audio only
+- `_handleMessage()` — parses token stream, accumulates final/interim transcript
+- `onTranscript(fullTranscript, finalTranscript, hasFinal)` callback
 
-### stopword.py
+### stopword.js
 - Detects configurable stop phrase (default: "thank you") at end of transcript
-- Handles variations: `. thank you`, `, thank you`, `! thank you`
-- Strips trailing punctuation from extracted command
+- Handles variations with trailing punctuation
 - Stateful: must reset after each detection
 
-### llm.py (Grok/xAI)
-- Uses langchain with xAI provider, temperature=0.1
-- System prompt includes STT error correction mappings (e.g., "cloud code" → "Claude Code")
-- Receives Kitty terminal context (last 50 lines) for disambiguation
-- Preserves swear words (frustration signals intent)
+### llm-service.js (Grok/xAI) — disabled on experiment branch
+- System prompt includes STT error correction mappings
+- Receives terminal context (last 50 lines) for disambiguation
+- Preserves swear words (frustration signals)
 
 ### Terminal Selector (Electron UI)
 - Custom dropdown replaces native `<select>` — shows terminal name + hover preview
-- Preview fetches last 10 lines via `get-terminal-preview` IPC (reuses `kittyService.getContext` with 10 lines)
-- Previews are cached in a `Map` per dropdown session (cleared on reopen)
-- `selectedTerminalId` variable replaces `terminalSelect.value` — no hidden form state
-- Dropdown refreshes terminal list on every open via `loadTerminals()`
+- Preview fetches last 20 lines via `get-terminal-preview` IPC
+- Previews cached in a `Map` per dropdown session (cleared on reopen)
+- Dropdown refreshes terminal list on every open
 
-### kitty.py
-- `get_socket_path()` — reads `$KITTY_LISTEN_ON`
-- `get_text(socket_path)` — captures current pane text
-- `send_command(socket_path, text)` — `kitty @ send-text` + `kitty @ send-key Return`
-
-### pipeline.py
-1. Start mic capture → stream to Soniox
-2. Accumulate transcript, check for stop word
-3. On stop word: get Kitty pane context → LLM correction
-4. Send corrected command to Kitty
-5. Reset transcript, continue listening
+### Python Modules (future CLI mode)
+- `src/voice_terminal/kitty.py`, `audio.py`, `stt.py`, `stopword.py`, `llm.py`

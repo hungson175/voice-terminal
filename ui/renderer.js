@@ -31,6 +31,32 @@ function showKeyError(service, errMsg) {
   keyErrorOverlay.style.display = "flex";
 }
 
+// Skip LLM dialog
+const skipLlmOverlay = document.getElementById("skip-llm-overlay");
+const skipLlmMsg = document.getElementById("skip-llm-msg");
+const skipLlmRemember = document.getElementById("skip-llm-remember");
+let skipLlmResolve = null;
+
+document.getElementById("skip-llm-yes").addEventListener("click", () => {
+  if (skipLlmRemember.checked) {
+    skipLlm = true;
+    localStorage.setItem("skipLlm", "true");
+  }
+  skipLlmOverlay.style.display = "none";
+  if (skipLlmResolve) skipLlmResolve("skip");
+});
+document.getElementById("skip-llm-update").addEventListener("click", () => {
+  skipLlmOverlay.style.display = "none";
+  window.voiceTerminal.resetCredentials();
+});
+
+function showSkipLlmDialog(errMsg) {
+  skipLlmMsg.textContent = `xAI correction failed: ${errMsg}. Continue without LLM correction?`;
+  skipLlmRemember.checked = false;
+  skipLlmOverlay.style.display = "flex";
+  return new Promise((resolve) => { skipLlmResolve = resolve; });
+}
+
 // Custom dropdown elements
 const dropdownTrigger = document.getElementById("dropdown-trigger");
 const dropdownList = document.getElementById("dropdown-list");
@@ -48,6 +74,8 @@ let detector = null;
 // State
 let isListening = false;
 let sonioxKey = "";
+let hasXaiKey = false;
+let skipLlm = localStorage.getItem("skipLlm") === "true";
 let reminderTimer = null;
 
 // --- Init ---
@@ -55,6 +83,7 @@ async function init() {
   // Load config from config.json (via main process)
   const config = await window.voiceTerminal.getConfig();
   sonioxKey = await window.voiceTerminal.getSonioxKey();
+  hasXaiKey = await window.voiceTerminal.hasXaiKey();
 
   // Configure services from config
   stt.setConfig(config.soniox);
@@ -197,6 +226,76 @@ function showPreview(text) {
   terminalPreview.textContent = text;
 }
 
+// --- Soniox context injection ---
+async function buildSonioxContext() {
+  const context = {
+    general: [
+      { key: "domain", value: "Software Development" },
+      { key: "speaker", value: "Vietnamese developer" },
+    ],
+    terms: [
+      "Claude Code", "tmux", "tm-send", "LLM", "API", "GitHub", "pytest",
+      "uv", "pnpm", "Celery", "Redis", "FastAPI", "Docker", "Kubernetes",
+      "git", "npm", "pip", "debug", "refactor", "deploy", "endpoint",
+      "middleware", "async", "await", "webhook", "caching", "SSH",
+      "localhost", "frontend", "backend", "TypeScript", "Python",
+    ],
+    translation_terms: [
+      // Vietnamese phonetic misheard → correct English
+      { source: "cross code", target: "Claude Code" },
+      { source: "cloud code", target: "Claude Code" },
+      { source: "cloth code", target: "Claude Code" },
+      { source: "tea mux", target: "tmux" },
+      { source: "tee mux", target: "tmux" },
+      { source: "T mux", target: "tmux" },
+      { source: "TMAX", target: "tmux" },
+      { source: "tm send", target: "tm-send" },
+      { source: "T M send", target: "tm-send" },
+      { source: "team send", target: "tm-send" },
+      { source: "L M", target: "LLM" },
+      { source: "elem", target: "LLM" },
+      { source: "A P I", target: "API" },
+      { source: "a p i", target: "API" },
+      { source: "get hub", target: "GitHub" },
+      { source: "git hub", target: "GitHub" },
+      { source: "pie test", target: "pytest" },
+      { source: "pi test", target: "pytest" },
+      { source: "you v", target: "uv" },
+      { source: "UV", target: "uv" },
+      { source: "pee npm", target: "pnpm" },
+      { source: "P NPM", target: "pnpm" },
+      { source: "salary", target: "Celery" },
+      { source: "seller e", target: "Celery" },
+      { source: "celery", target: "Celery" },
+      { source: "did bug", target: "debug" },
+      { source: "dee bug", target: "debug" },
+      { source: "dee back", target: "debug" },
+      { source: "re fact er", target: "refactor" },
+      { source: "duh ploy", target: "deploy" },
+      { source: "fast a p i", target: "FastAPI" },
+      { source: "fast API", target: "FastAPI" },
+      { source: "docker", target: "Docker" },
+      { source: "web hook", target: "webhook" },
+      { source: "end point", target: "endpoint" },
+      { source: "middle ware", target: "middleware" },
+    ],
+  };
+
+  // Inject terminal context as text (last 50 lines)
+  if (selectedTerminalId) {
+    try {
+      const termText = await window.voiceTerminal.getTerminalContext(selectedTerminalId);
+      if (termText) {
+        context.text = termText.slice(-4000);
+      }
+    } catch {
+      // Non-critical, proceed without terminal context
+    }
+  }
+
+  return context;
+}
+
 // --- Mic toggle ---
 async function startListening() {
   if (!sonioxKey) {
@@ -221,7 +320,9 @@ async function startListening() {
     sendBtn.classList.remove("sent");
     sendBtn.textContent = "Send to Terminal";
 
-    await stt.start(sonioxKey);
+    // Build Soniox context with terminal text + translation terms
+    const context = await buildSonioxContext();
+    await stt.start(sonioxKey, context);
 
     // Gentle beep every 60s while listening
     reminderTimer = setInterval(() => {
@@ -285,52 +386,54 @@ function handleTranscript(fullTranscript, finalTranscript, hasFinal) {
 }
 
 // --- Command detected (stop word triggered) ---
-// Continuous mode: correct → auto-send → clear → keep listening
+// If xAI key is set and LLM not skipped: correct → send
+// Otherwise: send raw transcript directly
 async function handleCommandDetected(rawCommand) {
-  // Reset transcript but keep mic running
   stt.resetTranscript();
   transcriptBox.innerHTML = "";
-  setStatus("Correcting...", "processing");
 
-  try {
-    // Get terminal context for LLM disambiguation
-    const terminalId = selectedTerminalId;
-    let terminalContext = "";
-    if (terminalId) {
-      terminalContext =
-        await window.voiceTerminal.getTerminalContext(terminalId);
+  let command = rawCommand.trim();
+  const terminalId = selectedTerminalId;
+
+  // Try LLM correction if xAI key is configured and not permanently skipped
+  if (hasXaiKey && !skipLlm) {
+    setStatus("Correcting...", "processing");
+    try {
+      let terminalContext = "";
+      if (terminalId) {
+        terminalContext = await window.voiceTerminal.getTerminalContext(terminalId);
+      }
+      command = await window.voiceTerminal.correctTranscript(command, terminalContext);
+    } catch (err) {
+      console.error("LLM correction failed:", err);
+      if (isAuthError(err.message || "")) {
+        const choice = await showSkipLlmDialog(err.message);
+        // "skip" → continue with raw command; "update" → already redirected to setup
+        if (choice !== "skip") return;
+      }
+      // Non-auth error: just use raw command
     }
+  }
 
-    // Call LLM correction
-    const corrected = await window.voiceTerminal.correctTranscript(
-      rawCommand,
-      terminalContext
-    );
+  commandBox.innerHTML = escapeHtml(command);
 
-    commandBox.innerHTML = escapeHtml(corrected);
-
-    // Auto-send if terminal is selected
-    if (terminalId) {
-      setStatus("Sending...", "processing");
-      const result = await window.voiceTerminal.sendCommand(terminalId, corrected);
+  // Auto-send if terminal is selected
+  if (terminalId && command) {
+    setStatus("Sending...", "processing");
+    try {
+      const result = await window.voiceTerminal.sendCommand(terminalId, command);
       if (result.success) {
         setStatus("Sent! Listening...", "listening");
       } else {
         setStatus("Send failed, listening...", "listening");
       }
-    } else {
-      // No terminal selected — show command for manual send
-      sendBtn.disabled = false;
-      setStatus("Ready to send", "sent");
+    } catch (err) {
+      console.error("Send failed:", err);
+      setStatus("Send failed, listening...", "listening");
     }
-  } catch (err) {
-    console.error("LLM correction failed:", err);
-    commandBox.innerHTML = escapeHtml(rawCommand);
+  } else {
     sendBtn.disabled = false;
-    setStatus("Correction failed, listening...", "listening");
-    if (isAuthError(err.message || "")) {
-      showKeyError("xAI", err.message);
-    }
+    setStatus("Ready to send", "sent");
   }
 }
 

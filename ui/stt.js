@@ -29,8 +29,10 @@ class SonioxSTT {
 
   /**
    * Start mic capture and connect to Soniox.
+   * @param {string} apiKey
+   * @param {object} [context] - Soniox context injection object
    */
-  async start(apiKey) {
+  async start(apiKey, context) {
     if (!this.sonioxConfig) {
       throw new Error("Soniox config not set — call setConfig() first");
     }
@@ -94,7 +96,9 @@ class SonioxSTT {
     if (cfg.language_hints) initMsg.language_hints = cfg.language_hints;
     if (cfg.language_hints_strict != null)
       initMsg.language_hints_strict = cfg.language_hints_strict;
+    if (context) initMsg.context = context;
 
+    console.log("[stt] Init msg:", JSON.stringify(initMsg, null, 2));
     this.ws.send(JSON.stringify(initMsg));
 
     // Handle incoming tokens
