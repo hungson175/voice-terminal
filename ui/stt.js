@@ -15,7 +15,8 @@ class SonioxSTT {
     this.processor = null;
     this.stream = null;
     this.transcript = "";
-    this.onTranscript = null; // (fullTranscript, finalTranscript, hasFinal) => void
+    this.translatedTranscript = "";
+    this.onTranscript = null; // (fullOriginal, finalOriginal, fullTranslated, finalTranslated, hasFinal) => void
     this.onError = null; // (error) => void
     this.sonioxConfig = null; // loaded from config.json
   }
@@ -39,6 +40,7 @@ class SonioxSTT {
 
     const cfg = this.sonioxConfig;
     this.transcript = "";
+    this.translatedTranscript = "";
 
     // Get microphone
     console.log("[stt] Requesting mic...");
@@ -97,6 +99,7 @@ class SonioxSTT {
     if (cfg.language_hints_strict != null)
       initMsg.language_hints_strict = cfg.language_hints_strict;
     if (context) initMsg.context = context;
+    if (cfg.translation) initMsg.translation = cfg.translation;
 
     console.log("[stt] Init msg:", JSON.stringify(initMsg, null, 2));
     this.ws.send(JSON.stringify(initMsg));
@@ -152,6 +155,7 @@ class SonioxSTT {
    */
   resetTranscript() {
     this.transcript = "";
+    this.translatedTranscript = "";
   }
 
   /**
@@ -167,23 +171,40 @@ class SonioxSTT {
       }
 
       const tokens = data.tokens || [];
-      let finalText = "";
-      let interimText = "";
+      let originalFinal = "";
+      let originalInterim = "";
+      let translatedFinal = "";
+      let translatedInterim = "";
 
       for (const token of tokens) {
-        if (token.is_final) {
-          finalText += token.text;
+        const isTranslation = token.translation_status === "translation";
+        if (isTranslation) {
+          if (token.is_final) {
+            translatedFinal += token.text;
+          } else {
+            translatedInterim += token.text;
+          }
         } else {
-          interimText += token.text;
+          // "original" or no translation_status
+          if (token.is_final) {
+            originalFinal += token.text;
+          } else {
+            originalInterim += token.text;
+          }
         }
       }
 
-      if (finalText) {
-        this.transcript += finalText;
+      if (originalFinal) {
+        this.transcript += originalFinal;
+      }
+      if (translatedFinal) {
+        this.translatedTranscript += translatedFinal;
       }
 
-      const fullTranscript = this.transcript + interimText;
-      this.onTranscript?.(fullTranscript, this.transcript, !!finalText);
+      const hasFinal = !!(originalFinal || translatedFinal);
+      const fullOriginal = this.transcript + originalInterim;
+      const fullTranslated = this.translatedTranscript + translatedInterim;
+      this.onTranscript?.(fullOriginal, this.transcript, fullTranslated, this.translatedTranscript, hasFinal);
     } catch (err) {
       console.error("STT message parse error:", err);
     }

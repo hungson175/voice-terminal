@@ -46,8 +46,11 @@ With context injection, LLM correction step is bypassed — raw Soniox transcrip
 ### stt.js (Soniox WebSocket, renderer process)
 - `start(apiKey, context)` — connects WebSocket, sends init config with optional context object, starts audio streaming
 - Protocol: JSON config first (text frame), then binary PCM16 audio only
-- `_handleMessage()` — parses token stream, accumulates final/interim transcript
-- `onTranscript(fullTranscript, finalTranscript, hasFinal)` callback
+- `_handleMessage()` — splits tokens by `translation_status` field:
+  - `"translation"` → accumulated into `translatedTranscript`
+  - `"original"` or undefined → accumulated into `transcript`
+- `onTranscript(fullOriginal, finalOriginal, fullTranslated, finalTranslated, hasFinal)` callback
+- Stop word detection runs on **translated** (English) text; only English command is sent to terminal
 
 ### stopword.js
 - Detects configurable stop phrase (default: "thank you") at end of transcript

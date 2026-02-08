@@ -14,8 +14,8 @@ uv run pytest tests/test_kitty.py -v             # Single test file
 ## Architecture
 Voice Terminal: macOS menubar app for voice-to-terminal commands (Vietnamese+English mix).
 
-**Pipeline (current, experiment branch):** Mic → Soniox WebSocket (with context injection) → STT → Stop word → kitty send-text
-**Pipeline (main branch):** Mic → Soniox → STT → Stop word → LLM correction (Grok/xAI) → kitty send-text
+**Pipeline (current):** Mic → Soniox WebSocket (context injection + translation) → STT → Split tokens by `translation_status` → Vietnamese box + English box → Stop word on English → kitty send-text
+**Pipeline (legacy/main):** Mic → Soniox → STT → Stop word → LLM correction (Grok/xAI) → kitty send-text
 
 **Electron app:**
 - `electron/main.js` — Main process: tray, IPC, credential loading, setup routing
@@ -23,9 +23,9 @@ Voice Terminal: macOS menubar app for voice-to-terminal commands (Vietnamese+Eng
 - `electron/credentials.js` — Encrypted API key storage via macOS Keychain (safeStorage)
 - `electron/kitty-service.js` — Auto-detect Kitty windows via `/tmp/mykitty-*` sockets
 - `electron/llm-service.js` — xAI API for transcript correction (disabled on experiment branch)
-- `ui/stt.js` — Soniox WebSocket STT client with context injection support
+- `ui/stt.js` — Soniox WebSocket STT client, splits tokens by `translation_status` into original/translated streams
 - `ui/stopword.js` — Stop word detector
-- `ui/renderer.js` — UI logic, Soniox context builder, terminal send
+- `ui/renderer.js` — UI logic, dual transcript display (Vietnamese + English), Soniox context builder, terminal send
 - `ui/setup.html` + `ui/setup.js` — First-run API key setup page
 - `ui/index.html` + `ui/styles.css` — Menubar popup UI
 

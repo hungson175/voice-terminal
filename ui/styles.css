@@ -604,3 +604,222 @@ body::-webkit-scrollbar-thumb {
 .dialog-checkbox input {
   cursor: pointer;
 }
+
+/* Config toggle (gear button in drag bar) */
+.config-toggle {
+  -webkit-app-region: no-drag;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  color: #86868b;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.config-toggle:hover {
+  color: #1d1d1f;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.config-toggle:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.config-toggle:disabled:hover {
+  color: #86868b;
+  background: none;
+}
+
+/* Config panel */
+.config-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.config-back-btn {
+  border: none;
+  background: none;
+  color: #0071e3;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.config-back-btn:hover {
+  background: rgba(0, 113, 227, 0.1);
+}
+
+.config-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: #1d1d1f;
+}
+
+.config-section {
+  margin-bottom: 14px;
+}
+
+.config-label {
+  display: block;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #86868b;
+  margin-bottom: 6px;
+}
+
+.config-hint {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.terms-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d2d2d7;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 12px;
+  font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  color: #1d1d1f;
+  resize: vertical;
+  outline: none;
+  line-height: 1.5;
+}
+
+.terms-textarea:focus {
+  border-color: #0071e3;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+}
+
+.translation-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.translation-table th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 11px;
+  color: #86868b;
+  padding: 4px 4px 6px;
+  border-bottom: 1px solid #d2d2d7;
+}
+
+.translation-table th:last-child {
+  width: 28px;
+}
+
+.translation-table td {
+  padding: 3px 4px;
+}
+
+.translation-table input {
+  width: 100%;
+  padding: 5px 6px;
+  border: 1px solid #e8e8ed;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: "SF Mono", "Menlo", "Monaco", monospace;
+  color: #1d1d1f;
+  background: #fff;
+  outline: none;
+}
+
+.translation-table input:focus {
+  border-color: #0071e3;
+  box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.12);
+}
+
+.translation-table tbody {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.delete-row-btn {
+  border: none;
+  background: none;
+  color: #c7c7cc;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.delete-row-btn:hover {
+  color: #ff3b30;
+  background: rgba(255, 59, 48, 0.08);
+}
+
+.add-row-btn {
+  border: none;
+  background: none;
+  color: #0071e3;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-top: 4px;
+}
+
+.add-row-btn:hover {
+  text-decoration: underline;
+}
+
+.config-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.config-save-btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 8px;
+  background: #0071e3;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.config-save-btn:hover {
+  background: #0077ed;
+}
+
+.config-reset-btn {
+  border: none;
+  background: none;
+  color: #86868b;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.config-reset-btn:hover {
+  color: #ff3b30;
+}
+
+.config-status {
+  font-size: 12px;
+  color: #34c759;
+  margin-top: 8px;
+  min-height: 16px;
+}
