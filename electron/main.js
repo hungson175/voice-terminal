@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require("fs");
 
 const kittyService = require("./kitty-service");
+const llmService = require("./llm-service");
 const credentials = require("./credentials");
 
 // --- PATH fix for packaged app (Finder doesn't inherit shell PATH) ---
@@ -22,28 +23,54 @@ const configPath = app.isPackaged
   : path.join(__dirname, "..", "config.json");
 const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 
-// --- Load credentials (Keychain) or .env fallback for dev ---
+// --- Load credentials: Keychain → shell env vars → .env fallback ---
 function loadApiKeys() {
+  // 1. Try Keychain (encrypted storage)
   if (credentials.hasCredentials()) {
     const creds = credentials.getCredentials();
     if (creds.xaiKey) process.env.XAI_API_KEY = creds.xaiKey;
     if (creds.sonioxKey) process.env.SONIOX_API_KEY = creds.sonioxKey;
-    if (creds.sonioxKey) return;
+    if (creds.xaiKey && creds.sonioxKey) return;
   }
-  // Dev fallback: .env file
-  const envPath = app.isPackaged
-    ? null
-    : path.join(__dirname, "..", ".env");
-  if (envPath && fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, "utf-8");
-    for (const line of envContent.split("\n")) {
-      const trimmed = line.trim();
-      if (trimmed && !trimmed.startsWith("#")) {
-        const eqIdx = trimmed.indexOf("=");
+
+  // 2. Try sourcing shell env vars (packaged apps don't inherit shell env)
+  if (!process.env.XAI_API_KEY || !process.env.SONIOX_API_KEY) {
+    try {
+      const { execSync } = require("child_process");
+      const shellEnv = execSync('zsh -ilc "env"', {
+        encoding: "utf-8",
+        timeout: 5000,
+      });
+      for (const line of shellEnv.split("\n")) {
+        const eqIdx = line.indexOf("=");
         if (eqIdx > 0) {
-          const key = trimmed.slice(0, eqIdx);
-          const value = trimmed.slice(eqIdx + 1);
-          process.env[key] = value;
+          const key = line.slice(0, eqIdx);
+          if (key === "SONIOX_API_KEY" || key === "XAI_API_KEY") {
+            if (!process.env[key]) process.env[key] = line.slice(eqIdx + 1);
+          }
+        }
+      }
+    } catch {
+      // Shell sourcing failed, continue to .env fallback
+    }
+  }
+
+  // 3. Dev fallback: .env file in project root
+  if (!process.env.XAI_API_KEY || !process.env.SONIOX_API_KEY) {
+    const envPath = app.isPackaged
+      ? null
+      : path.join(__dirname, "..", ".env");
+    if (envPath && fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, "utf-8");
+      for (const line of envContent.split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith("#")) {
+          const eqIdx = trimmed.indexOf("=");
+          if (eqIdx > 0) {
+            const key = trimmed.slice(0, eqIdx);
+            const value = trimmed.slice(eqIdx + 1);
+            if (!process.env[key]) process.env[key] = value;
+          }
         }
       }
     }
@@ -55,7 +82,7 @@ loadApiKeys();
 // --- Determine which page to show ---
 function getStartUrl() {
   const needsSetup =
-    !credentials.hasCredentials() && !process.env.SONIOX_API_KEY;
+    !credentials.hasCredentials() && !(process.env.XAI_API_KEY && process.env.SONIOX_API_KEY);
   const page = needsSetup ? "setup.html" : "index.html";
   return `file://${path.join(__dirname, "..", "ui", page)}`;
 }
@@ -111,7 +138,7 @@ mb.on("after-create-window", () => {
 ipcMain.handle("save-credentials", async (_event, { xaiKey, sonioxKey }) => {
   credentials.saveCredentials(xaiKey, sonioxKey);
   // Set env vars immediately so the current session works
-  if (xaiKey) process.env.XAI_API_KEY = xaiKey;
+  process.env.XAI_API_KEY = xaiKey;
   process.env.SONIOX_API_KEY = sonioxKey;
   // Reload window to main UI
   mb.window.loadURL(
@@ -166,7 +193,7 @@ ipcMain.handle("send-command", async (_event, { terminalId, command }) => {
   }
 });
 
-// Get terminal context for Soniox context injection
+// Get terminal context for LLM disambiguation
 ipcMain.handle("get-terminal-context", async (_event, terminalId) => {
   try {
     const [socket, windowId] = terminalId.split("::");
@@ -189,8 +216,29 @@ ipcMain.handle("get-terminal-preview", async (_event, terminalId) => {
   }
 });
 
+// Correct transcript via LLM
+ipcMain.handle(
+  "correct-transcript",
+  async (_event, { transcript, terminalContext }) => {
+    const apiKey = process.env.XAI_API_KEY;
+    if (!apiKey) {
+      throw new Error("XAI_API_KEY not set — run setup or add .env");
+    }
+    return await llmService.correctTranscript(
+      transcript,
+      terminalContext,
+      apiKey,
+      config.llm
+    );
+  }
+);
+
 // Provide Soniox API key to renderer
 ipcMain.handle("get-soniox-key", async () => {
   return process.env.SONIOX_API_KEY || "";
 });
 
+// Check if xAI key is configured
+ipcMain.handle("has-xai-key", async () => {
+  return !!process.env.XAI_API_KEY;
+});

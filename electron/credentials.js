@@ -34,7 +34,7 @@ function writeStore(data) {
 
 function hasCredentials() {
   const store = readStore();
-  return !!store.sonioxKey;
+  return !!(store.xaiKey && store.sonioxKey);
 }
 
 function getCredentials() {
@@ -64,11 +64,9 @@ function saveCredentials(xaiKey, sonioxKey) {
     throw new Error("Encryption not available on this system");
   }
   const store = {};
-  if (xaiKey) {
-    store.xaiKey = safeStorage
-      .encryptString(xaiKey)
-      .toString("base64");
-  }
+  store.xaiKey = safeStorage
+    .encryptString(xaiKey)
+    .toString("base64");
   store.sonioxKey = safeStorage
     .encryptString(sonioxKey)
     .toString("base64");

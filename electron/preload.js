@@ -13,8 +13,15 @@ contextBridge.exposeInMainWorld("voiceTerminal", {
   getTerminalPreview: (terminalId) =>
     ipcRenderer.invoke("get-terminal-preview", terminalId),
 
+  // LLM correction
+  correctTranscript: (transcript, terminalContext) =>
+    ipcRenderer.invoke("correct-transcript", { transcript, terminalContext }),
+
   // Soniox API key (for direct WebSocket from renderer)
   getSonioxKey: () => ipcRenderer.invoke("get-soniox-key"),
+
+  // Check if xAI key is configured
+  hasXaiKey: () => ipcRenderer.invoke("has-xai-key"),
 
   // Config
   getConfig: () => ipcRenderer.invoke("get-config"),

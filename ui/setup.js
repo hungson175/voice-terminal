@@ -7,8 +7,8 @@ saveBtn.addEventListener("click", async () => {
   const xaiKey = xaiInput.value.trim();
   const sonioxKey = sonioxInput.value.trim();
 
-  if (!sonioxKey) {
-    errorEl.textContent = "Soniox API key is required.";
+  if (!xaiKey || !sonioxKey) {
+    errorEl.textContent = "Both API keys are required.";
     errorEl.style.display = "block";
     return;
   }

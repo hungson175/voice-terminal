@@ -1,57 +1,8 @@
-// Default Soniox context terms (used when localStorage is empty)
-const DEFAULT_TERMS = [
-  "Claude Code", "tmux", "tm-send", "LLM", "API", "GitHub", "pytest",
-  "uv", "pnpm", "Celery", "Redis", "FastAPI", "Docker", "Kubernetes",
-  "git", "npm", "pip", "debug", "refactor", "deploy", "endpoint",
-  "middleware", "async", "await", "webhook", "caching", "SSH",
-  "localhost", "frontend", "backend", "TypeScript", "Python",
-];
-
-const DEFAULT_TRANSLATION_TERMS = [
-  { source: "cross code", target: "Claude Code" },
-  { source: "cloud code", target: "Claude Code" },
-  { source: "cloth code", target: "Claude Code" },
-  { source: "tea mux", target: "tmux" },
-  { source: "tee mux", target: "tmux" },
-  { source: "T mux", target: "tmux" },
-  { source: "TMAX", target: "tmux" },
-  { source: "tm send", target: "tm-send" },
-  { source: "T M send", target: "tm-send" },
-  { source: "team send", target: "tm-send" },
-  { source: "L M", target: "LLM" },
-  { source: "elem", target: "LLM" },
-  { source: "A P I", target: "API" },
-  { source: "a p i", target: "API" },
-  { source: "get hub", target: "GitHub" },
-  { source: "git hub", target: "GitHub" },
-  { source: "pie test", target: "pytest" },
-  { source: "pi test", target: "pytest" },
-  { source: "you v", target: "uv" },
-  { source: "UV", target: "uv" },
-  { source: "pee npm", target: "pnpm" },
-  { source: "P NPM", target: "pnpm" },
-  { source: "salary", target: "Celery" },
-  { source: "seller e", target: "Celery" },
-  { source: "celery", target: "Celery" },
-  { source: "did bug", target: "debug" },
-  { source: "dee bug", target: "debug" },
-  { source: "dee back", target: "debug" },
-  { source: "re fact er", target: "refactor" },
-  { source: "duh ploy", target: "deploy" },
-  { source: "fast a p i", target: "FastAPI" },
-  { source: "fast API", target: "FastAPI" },
-  { source: "docker", target: "Docker" },
-  { source: "web hook", target: "webhook" },
-  { source: "end point", target: "endpoint" },
-  { source: "middle ware", target: "middleware" },
-];
-
 // DOM elements
 const micBtn = document.getElementById("mic-btn");
 const micLabel = document.getElementById("mic-label");
 const statusText = document.getElementById("status-text");
 const transcriptBox = document.getElementById("transcript");
-const translatedBox = document.getElementById("translated");
 const commandBox = document.getElementById("command-box");
 const sendBtn = document.getElementById("send-btn");
 const clearBtn = document.getElementById("clear-btn");
@@ -80,6 +31,32 @@ function showKeyError(service, errMsg) {
   keyErrorOverlay.style.display = "flex";
 }
 
+// Skip LLM dialog
+const skipLlmOverlay = document.getElementById("skip-llm-overlay");
+const skipLlmMsg = document.getElementById("skip-llm-msg");
+const skipLlmRemember = document.getElementById("skip-llm-remember");
+let skipLlmResolve = null;
+
+document.getElementById("skip-llm-yes").addEventListener("click", () => {
+  if (skipLlmRemember.checked) {
+    skipLlm = true;
+    localStorage.setItem("skipLlm", "true");
+  }
+  skipLlmOverlay.style.display = "none";
+  if (skipLlmResolve) skipLlmResolve("skip");
+});
+document.getElementById("skip-llm-update").addEventListener("click", () => {
+  skipLlmOverlay.style.display = "none";
+  window.voiceTerminal.resetCredentials();
+});
+
+function showSkipLlmDialog(errMsg) {
+  skipLlmMsg.textContent = `xAI correction failed: ${errMsg}. Continue without LLM correction?`;
+  skipLlmRemember.checked = false;
+  skipLlmOverlay.style.display = "flex";
+  return new Promise((resolve) => { skipLlmResolve = resolve; });
+}
+
 // Custom dropdown elements
 const dropdownTrigger = document.getElementById("dropdown-trigger");
 const dropdownList = document.getElementById("dropdown-list");
@@ -97,6 +74,8 @@ let detector = null;
 // State
 let isListening = false;
 let sonioxKey = "";
+let hasXaiKey = false;
+let skipLlm = localStorage.getItem("skipLlm") === "true";
 let reminderTimer = null;
 
 // --- Init ---
@@ -104,9 +83,7 @@ async function init() {
   // Load config from config.json (via main process)
   const config = await window.voiceTerminal.getConfig();
   sonioxKey = await window.voiceTerminal.getSonioxKey();
-
-  // Clean up stale localStorage from old LLM flow
-  localStorage.removeItem("skipLlm");
+  hasXaiKey = await window.voiceTerminal.hasXaiKey();
 
   // Configure services from config
   stt.setConfig(config.soniox);
@@ -249,23 +226,6 @@ function showPreview(text) {
   terminalPreview.textContent = text;
 }
 
-// --- Soniox context config helpers ---
-function getSavedTerms() {
-  const stored = localStorage.getItem("sonioxTerms");
-  if (stored) {
-    try { return JSON.parse(stored); } catch { /* fall through */ }
-  }
-  return DEFAULT_TERMS;
-}
-
-function getSavedTranslationTerms() {
-  const stored = localStorage.getItem("sonioxTranslationTerms");
-  if (stored) {
-    try { return JSON.parse(stored); } catch { /* fall through */ }
-  }
-  return DEFAULT_TRANSLATION_TERMS;
-}
-
 // --- Soniox context injection ---
 async function buildSonioxContext() {
   const context = {
@@ -273,8 +233,52 @@ async function buildSonioxContext() {
       { key: "domain", value: "Software Development" },
       { key: "speaker", value: "Vietnamese developer" },
     ],
-    terms: getSavedTerms(),
-    translation_terms: getSavedTranslationTerms(),
+    terms: [
+      "Claude Code", "tmux", "tm-send", "LLM", "API", "GitHub", "pytest",
+      "uv", "pnpm", "Celery", "Redis", "FastAPI", "Docker", "Kubernetes",
+      "git", "npm", "pip", "debug", "refactor", "deploy", "endpoint",
+      "middleware", "async", "await", "webhook", "caching", "SSH",
+      "localhost", "frontend", "backend", "TypeScript", "Python",
+    ],
+    translation_terms: [
+      // Vietnamese phonetic misheard → correct English
+      { source: "cross code", target: "Claude Code" },
+      { source: "cloud code", target: "Claude Code" },
+      { source: "cloth code", target: "Claude Code" },
+      { source: "tea mux", target: "tmux" },
+      { source: "tee mux", target: "tmux" },
+      { source: "T mux", target: "tmux" },
+      { source: "TMAX", target: "tmux" },
+      { source: "tm send", target: "tm-send" },
+      { source: "T M send", target: "tm-send" },
+      { source: "team send", target: "tm-send" },
+      { source: "L M", target: "LLM" },
+      { source: "elem", target: "LLM" },
+      { source: "A P I", target: "API" },
+      { source: "a p i", target: "API" },
+      { source: "get hub", target: "GitHub" },
+      { source: "git hub", target: "GitHub" },
+      { source: "pie test", target: "pytest" },
+      { source: "pi test", target: "pytest" },
+      { source: "you v", target: "uv" },
+      { source: "UV", target: "uv" },
+      { source: "pee npm", target: "pnpm" },
+      { source: "P NPM", target: "pnpm" },
+      { source: "salary", target: "Celery" },
+      { source: "seller e", target: "Celery" },
+      { source: "celery", target: "Celery" },
+      { source: "did bug", target: "debug" },
+      { source: "dee bug", target: "debug" },
+      { source: "dee back", target: "debug" },
+      { source: "re fact er", target: "refactor" },
+      { source: "duh ploy", target: "deploy" },
+      { source: "fast a p i", target: "FastAPI" },
+      { source: "fast API", target: "FastAPI" },
+      { source: "docker", target: "Docker" },
+      { source: "web hook", target: "webhook" },
+      { source: "end point", target: "endpoint" },
+      { source: "middle ware", target: "middleware" },
+    ],
   };
 
   // Inject terminal context as text (last 50 lines)
@@ -305,12 +309,10 @@ async function startListening() {
     micLabel.textContent = "Stop";
     setStatus("Listening...", "listening");
     window.voiceTerminal.setMicState(true);
-    configToggle.disabled = true;
 
     // Clear previous
     transcriptBox.innerHTML = "";
     transcriptBox.contentEditable = "false";
-    translatedBox.innerHTML = "";
     editBtn.style.display = "none";
     editBtn.classList.remove("active");
     commandBox.innerHTML = '<span class="placeholder">—</span>';
@@ -349,7 +351,6 @@ function stopListening() {
   micLabel.textContent = "Start";
   window.voiceTerminal.setMicState(false);
   stt.stop();
-  configToggle.disabled = false;
   if (reminderTimer) {
     clearInterval(reminderTimer);
     reminderTimer = null;
@@ -369,20 +370,15 @@ function stopListening() {
 }
 
 // --- Transcript handling ---
-function handleTranscript(fullOriginal, finalOriginal, fullTranslated, finalTranslated, hasFinal) {
-  // Display original Vietnamese: final in black, interim in gray
-  const origInterim = fullOriginal.slice(finalOriginal.length);
-  transcriptBox.innerHTML = `${escapeHtml(finalOriginal)}<span class="interim">${escapeHtml(origInterim)}</span>`;
+function handleTranscript(fullTranscript, finalTranscript, hasFinal) {
+  // Display: final text in black, interim in gray
+  const interimPart = fullTranscript.slice(finalTranscript.length);
+  transcriptBox.innerHTML = `${escapeHtml(finalTranscript)}<span class="interim">${escapeHtml(interimPart)}</span>`;
   transcriptBox.scrollTop = transcriptBox.scrollHeight;
 
-  // Display English translation: final in black, interim in gray
-  const transInterim = fullTranslated.slice(finalTranslated.length);
-  translatedBox.innerHTML = `${escapeHtml(finalTranslated)}<span class="interim">${escapeHtml(transInterim)}</span>`;
-  translatedBox.scrollTop = translatedBox.scrollHeight;
-
-  // Check stop word on translated (English) final text — stop word is "thank you"
+  // Check stop word on final text only
   if (hasFinal) {
-    const result = detector.process(finalTranslated);
+    const result = detector.process(finalTranscript);
     if (result.detected && result.command) {
       handleCommandDetected(result.command);
     }
@@ -390,13 +386,34 @@ function handleTranscript(fullOriginal, finalOriginal, fullTranslated, finalTran
 }
 
 // --- Command detected (stop word triggered) ---
+// If xAI key is set and LLM not skipped: correct → send
+// Otherwise: send raw transcript directly
 async function handleCommandDetected(rawCommand) {
   stt.resetTranscript();
   transcriptBox.innerHTML = "";
-  translatedBox.innerHTML = "";
 
-  const command = rawCommand.trim();
+  let command = rawCommand.trim();
   const terminalId = selectedTerminalId;
+
+  // Try LLM correction if xAI key is configured and not permanently skipped
+  if (hasXaiKey && !skipLlm) {
+    setStatus("Correcting...", "processing");
+    try {
+      let terminalContext = "";
+      if (terminalId) {
+        terminalContext = await window.voiceTerminal.getTerminalContext(terminalId);
+      }
+      command = await window.voiceTerminal.correctTranscript(command, terminalContext);
+    } catch (err) {
+      console.error("LLM correction failed:", err);
+      if (isAuthError(err.message || "")) {
+        const choice = await showSkipLlmDialog(err.message);
+        // "skip" → continue with raw command; "update" → already redirected to setup
+        if (choice !== "skip") return;
+      }
+      // Non-auth error: just use raw command
+    }
+  }
 
   commandBox.innerHTML = escapeHtml(command);
 
@@ -452,9 +469,7 @@ function handleClear() {
   if (isListening) stopListening();
   stt.resetTranscript();
   transcriptBox.innerHTML =
-    '<span class="placeholder">Vietnamese transcript...</span>';
-  translatedBox.innerHTML =
-    '<span class="placeholder">English translation...</span>';
+    '<span class="placeholder">Transcript will appear here...</span>';
   commandBox.innerHTML = '<span class="placeholder">—</span>';
   sendBtn.disabled = true;
   sendBtn.classList.remove("sent");
@@ -513,100 +528,6 @@ document.getElementById("reset-keys-btn").addEventListener("click", () => {
 document.getElementById("quit-btn").addEventListener("click", () => {
   window.voiceTerminal.quitApp();
 });
-
-// --- Config panel ---
-const configToggle = document.getElementById("config-toggle");
-const configPanel = document.getElementById("config-panel");
-const mainPanel = document.getElementById("main-panel");
-const configTermsArea = document.getElementById("config-terms");
-const translationTbody = document.getElementById("translation-tbody");
-const configStatus = document.getElementById("config-status");
-
-function showConfigPanel() {
-  // Populate fields from localStorage (or defaults)
-  configTermsArea.value = getSavedTerms().join(", ");
-  populateTranslationTable(getSavedTranslationTerms());
-  configStatus.textContent = "";
-
-  mainPanel.style.display = "none";
-  configPanel.style.display = "";
-}
-
-function hideConfigPanel() {
-  configPanel.style.display = "none";
-  mainPanel.style.display = "";
-}
-
-function populateTranslationTable(pairs) {
-  translationTbody.innerHTML = "";
-  pairs.forEach((pair) => addTranslationRow(pair.source, pair.target));
-}
-
-function addTranslationRow(source, target) {
-  const tr = document.createElement("tr");
-
-  const td1 = document.createElement("td");
-  const input1 = document.createElement("input");
-  input1.type = "text";
-  input1.value = source || "";
-  input1.placeholder = "misheard";
-  td1.appendChild(input1);
-
-  const td2 = document.createElement("td");
-  const input2 = document.createElement("input");
-  input2.type = "text";
-  input2.value = target || "";
-  input2.placeholder = "correct";
-  td2.appendChild(input2);
-
-  const td3 = document.createElement("td");
-  const delBtn = document.createElement("button");
-  delBtn.className = "delete-row-btn";
-  delBtn.title = "Remove";
-  delBtn.textContent = "\u00D7";
-  delBtn.addEventListener("click", () => tr.remove());
-  td3.appendChild(delBtn);
-
-  tr.append(td1, td2, td3);
-  translationTbody.appendChild(tr);
-}
-
-function saveConfig() {
-  // Parse terms textarea
-  const termsRaw = configTermsArea.value;
-  const terms = termsRaw.split(",").map((t) => t.trim()).filter(Boolean);
-
-  // Collect translation rows
-  const rows = translationTbody.querySelectorAll("tr");
-  const translationTerms = [];
-  rows.forEach((row) => {
-    const inputs = row.querySelectorAll("input");
-    const source = inputs[0].value.trim();
-    const target = inputs[1].value.trim();
-    if (source && target) {
-      translationTerms.push({ source, target });
-    }
-  });
-
-  localStorage.setItem("sonioxTerms", JSON.stringify(terms));
-  localStorage.setItem("sonioxTranslationTerms", JSON.stringify(translationTerms));
-
-  configStatus.textContent = "Saved!";
-  setTimeout(() => { configStatus.textContent = ""; }, 2000);
-}
-
-function resetConfigToDefaults() {
-  configTermsArea.value = DEFAULT_TERMS.join(", ");
-  populateTranslationTable(DEFAULT_TRANSLATION_TERMS);
-  configStatus.textContent = "Defaults loaded. Click Save to apply.";
-  setTimeout(() => { configStatus.textContent = ""; }, 3000);
-}
-
-configToggle.addEventListener("click", showConfigPanel);
-document.getElementById("config-back").addEventListener("click", hideConfigPanel);
-document.getElementById("config-save").addEventListener("click", saveConfig);
-document.getElementById("config-reset").addEventListener("click", resetConfigToDefaults);
-document.getElementById("add-row-btn").addEventListener("click", () => addTranslationRow("", ""));
 
 // --- Boot ---
 init();
